@@ -154,5 +154,4 @@ def l0_smooth(image_r, kappa=2.0, _lambda=2e-2, verbose=False):
     print "Iterations: %d" % (iteration)
 
     '''
-
     return S

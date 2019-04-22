@@ -1,59 +1,69 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Apr 19 16:40:45 2019
-
-@author: MitTal
-"""
-
 import cv2
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
 from l0smooth.L0_serial import l0_smooth
-import src
 
+def main():
 
-image = cv2.imread('images\\img.png')
-gray_img = cv2.cvtColor(image ,cv2.COLOR_BGR2GRAY)
-image_l0 = l0_smooth(image)
-image_blur = cv2.GaussianBlur(image_l0, (5, 5), 0)
-img_can = cv2.Canny(image_blur.astype('uint8'), 100, 200)
+    parser = argparse.ArgumentParser(description="mural2sketch")
 
-gray_blur = cv2.cvtColor(image_blur,cv2.COLOR_BGR2GRAY)
+    parser.add_argument('image', help="input image file")
 
-khali_image = np.zeros((232,230))
-for i in range(0,len(khali_image)):
-    for j in range(0,len(khali_image[0])):
-        if(img_can[i][j]==255):
-            khali_image[i][j] = gray_blur[i][j]
+    args = parser.parse_args()
 
-image_I2 = np.zeros((232,230))
+    image = args.image
 
-for i in range(0,len(image_I2)):
-    for j in range(0,len(image_I2[0])):
+    # Preprocessing
 
-        if(gray_blur[i][j] == 0):
-            delta_I0 = 255 
-        else:
-            delta_I0 = ((255-gray_blur[i][j])/gray_blur[i][j])*gray_img[i][j]
+    image_l0 = l0_smooth(image)
 
-        image_I2[i][j] = min(255, (gray_img[i][j] + delta_I0))
+    image_gray = cv2.cvtColor(image_l0, cv2.COLOR_BGR2GRAY)
 
-cv2.imwrite('abc.png',image_I2)
+    image_blur = cv2.GaussianBlur(image_gray, (5, 5), 0)
 
+    high_thresh_blur, thresh_im = cv2.threshold(image_blur.astype('uint8'), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
+    low_thresh_blur = 0.5 * high_thresh_blur
 
-image_I2 = image_I2.astype('uint8')
+    image_can = cv2.Canny(image_blur.astype('uint8'), low_thresh_blur, high_thresh_blur, True, apertureSize=5)
 
-ret2,th2 = cv2.threshold(image_I2.flatten(),0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
-#img_thresh_Gaussian = cv2.adaptiveThreshold(image_I2, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2)
+    image_outer = np.zeros(image_blur.shape)
 
-threshold_img = np.zeros((232,230))
-for i in range(0,len(image_I2)):
-    for j in range(0,len(image_I2[0])):
-        if(image_I2[i][j] >= ret2):
-            threshold_img[i][j] = 255
-        else:
-            threshold_img[i][j] = 0
+    for i in range(0, len(image_outer)):
+        for j in range(0, len(image_outer[i])):
+            if(image_can[i][j] == 255):
+                image_outer[i][j] = image_blur[i][j]
+            else:
+                image_outer[i][j] = 255
+
+    cv2.imwrite('outer.png', image_outer)
+
+    image_inner = np.zeros(image_blur.shape)
+
+    for i in range(0, len(image_inner)):
+        for j in range(0, len(image_inner[i])):
+            if(image_blur[i][j] == 0):
+                delta = 255.0
+            else:
+                delta = ((255.0 - image_blur[i][j]) / float(image_blur[i][j])) * image_gray[i][j]
+                
+            image_inner[i][j] = min(255.0, (image_gray[i][j] + delta))
             
-cv2.imwrite('threshold_image.png',threshold_img)
+    cv2.imwrite('inner.png', image_inner)
+
+    high_thresh_inner, thresh_im_inner = cv2.threshold(image_inner.astype('uint8'), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    image_inner_thresh = np.zeros(image_blur.shape)
+
+    for i in range(0, len(image_inner_thresh)):
+        for j in range(0, len(image_inner_thresh[i])):
+            if(image_inner[i][j] >= high_thresh_inner):
+                image_inner_thresh[i][j] = 255
+            else:
+                image_inner_thresh[i][j] = 0
+
+    cv2.imwrite('innerthresh.png', image_inner_thresh)
+
+if __name__ == '__main__':
+    main()
